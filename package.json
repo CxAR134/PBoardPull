@@ -1,0 +1,7 @@
+{
+  "name": "board-pack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Turn a Pinterest board into one PDF an LLM can read.",
+  "engines": { "node": ">=18" }
+}

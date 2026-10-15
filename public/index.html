@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Board Pack">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Board Pack</title>
+<style>
+  :root {
+    --bg: #0a0a0a; --fg: #f2efe9; --dim: #8a8780; --line: #26241f; --hot: #ff5a36;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top) 20px calc(env(safe-area-inset-bottom) + 24px);
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  header { padding: 28px 0 20px; }
+  h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; text-transform: uppercase; line-height: 1; }
+  h1 i { color: var(--hot); font-style: normal; }
+  .sub { margin: 10px 0 0; color: var(--dim); }
+  .label { font: 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 22px 0 8px; }
+  input[type=text], input[type=password], input[type=search] {
+    width: 100%; height: 54px; padding: 0 16px; font-size: 16px; color: var(--fg);
+    background: #141412; border: 1px solid var(--line); border-radius: 12px; outline: none;
+  }
+  input:focus { border-color: var(--hot); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .btn {
+    width: 100%; height: 58px; border: 0; border-radius: 14px; font-weight: 700; font-size: 17px;
+    background: var(--fg); color: #0a0a0a; margin-top: 12px;
+  }
+  .btn.hot { background: var(--hot); color: #0a0a0a; }
+  .btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  .btn:active { transform: scale(.985); opacity: .9; }
+  .seg { display: flex; gap: 8px; }
+  .seg button {
+    flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: transparent;
+    font: 15px var(--mono); color: var(--dim);
+  }
+  .seg button[aria-pressed=true] { border-color: var(--fg); color: var(--fg); }
+  .board {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+    min-height: 64px; padding: 12px 4px; text-align: left; background: none; border: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .board:active { background: #141412; }
+  .board .n { font-weight: 600; overflow-wrap: anywhere; }
+  .board .c { font: 13px var(--mono); color: var(--dim); white-space: nowrap; }
+  .note { color: var(--dim); font-size: 15px; }
+  .err { color: var(--hot); }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 16px 0 10px; }
+  .bar b { display: block; height: 100%; width: 0; background: var(--hot); transition: width .25s; }
+  .big { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 40px 0 4px; overflow-wrap: anywhere; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  .link { background: none; border: 0; color: var(--dim); font: 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 8px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="top">
+      <h1>Board<i>.</i>Pack</h1>
+      <button class="link" id="lock" hidden>Lock</button>
+    </div>
+    <p class="sub">Pick a board. Get one PDF. Hand it to an LLM.</p>
+  </header>
+
+  <section id="gate" hidden>
+    <div class="label">Access key</div>
+    <input id="keyIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="The APP_KEY you set in Vercel">
+    <button class="btn" id="keyGo">Unlock</button>
+    <p class="note err" id="gateNote"></p>
+  </section>
+
+  <section id="boards" hidden>
+    <div class="label">Pins per sheet</div>
+    <div class="seg" id="seg">
+      <button data-n="6">6</button><button data-n="12">12</button><button data-n="20">20</button>
+    </div>
+    <div class="label">Your boards</div>
+    <input id="filter" type="search" placeholder="Filter boards" autocomplete="off">
+    <div id="list"></div>
+    <p class="note" id="boardsNote"></p>
+  </section>
+
+  <section id="work" hidden>
+    <div class="big" id="workName"></div>
+    <div class="note" id="status"></div>
+    <div class="bar" id="progress"><b id="fill"></b></div>
+    <div id="done" hidden>
+      <p class="note" id="doneInfo"></p>
+      <button class="btn hot" id="share">Share PDF</button>
+      <button class="btn ghost" id="open">Open / save</button>
+      <button class="btn ghost" id="back1">Back to boards</button>
+    </div>
+  </section>
+
+  <section id="error" hidden>
+    <div class="big">Hit a wall</div>
+    <p class="note err" id="errMsg"></p>
+    <button class="btn" id="back2">Back</button>
+  </section>
+</main>
+
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/pack.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const store = {
+    get(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (_) {} },
+  };
+  let key = store.get('bp_key');
+  let per = [6, 12, 20].includes(+store.get('bp_per')) ? +store.get('bp_per') : 12;
+  let boards = [];
+  let fileUrl = null;
+
+  function show(id) {
+    for (const s of document.querySelectorAll('main > section')) s.hidden = s.id !== id;
+    $('#lock').hidden = !key;
+  }
+
+  async function api(path) {
+    const r = await fetch(path, { headers: { 'x-app-key': key } });
+    let d = null;
+    try { d = await r.json(); } catch (_) {}
+    if (r.status === 401) {
+      key = ''; store.del('bp_key');
+      const e = new Error('Wrong access key.'); e.gate = true; throw e;
+    }
+    if (!r.ok) throw new Error((d && d.error) || 'Request failed (' + r.status + ').');
+    return d;
+  }
+
+  function fail(e) {
+    if (e.gate) { $('#gateNote').textContent = e.message; show('gate'); return; }
+    $('#errMsg').textContent = e.message || String(e);
+    show('error');
+  }
+
+  async function loadBoards() {
+    show('boards');
+    $('#list').textContent = '';
+    $('#boardsNote').textContent = 'Loading…';
+    try {
+      boards = (await api('/api/boards')).boards;
+      $('#boardsNote').textContent = boards.length ? '' : 'No boards found for this token.';
+      renderBoards();
+    } catch (e) { fail(e); }
+  }
+
+  function renderBoards() {
+    const q = $('#filter').value.trim().toLowerCase();
+    const list = $('#list');
+    list.textContent = '';
+    boards.filter((b) => !q || b.name.toLowerCase().includes(q)).forEach((b) => {
+      const row = document.createElement('button');
+      row.className = 'board';
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = b.name;
+      const c = document.createElement('span'); c.className = 'c';
+      c.textContent = (b.privacy !== 'PUBLIC' ? 'SECRET · ' : '') + b.pins + ' pins';
+      row.append(n, c);
+      row.addEventListener('click', () => run(b));
+      list.append(row);
+    });
+  }
+
+  function paintSeg() {
+    document.querySelectorAll('#seg button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.n === per)));
+  }
+
+  function createCanvas(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+
+  async function loadImage(url) {
+    const r = await fetch('/api/img?u=' + encodeURIComponent(url), { headers: { 'x-app-key': key } });
+    if (!r.ok) throw new Error('image ' + r.status);
+    const blob = await r.blob();
+    if (window.createImageBitmap) return createImageBitmap(blob);
+    return new Promise((res, rej) => {
+      const u = URL.createObjectURL(blob), im = new Image();
+      im.onload = () => { URL.revokeObjectURL(u); res(im); };
+      im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('decode')); };
+      im.src = u;
+    });
+  }
+
+  function setStatus(text, frac) {
+    $('#status').textContent = text;
+    if (frac != null) $('#fill').style.width = Math.round(frac * 100) + '%';
+  }
+
+  const slug = (s) => (s || 'board').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'board';
+
+  async function run(board) {
+    show('work');
+    $('#done').hidden = true;
+    $('#progress').hidden = false;
+    $('#workName').textContent = board.name;
+    setStatus('Reading pins', 0.02);
+    let wake = null;
+    try { wake = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch (_) {}
+    try {
+      const pins = [];
+      let bm = null, guard = 0;
+      do {
+        const d = await api('/api/pins?board=' + encodeURIComponent(board.id) + (bm ? '&bookmark=' + encodeURIComponent(bm) : ''));
+        pins.push(...d.pins);
+        bm = d.bookmark;
+        setStatus('Reading pins · ' + pins.length, 0.05);
+      } while (bm && ++guard < 60);
+      if (!pins.length) throw new Error('That board has no pins.');
+
+      const blob = await BoardPack.buildPack({
+        pins, boardName: board.name, perSheet: per,
+        jsPDF: window.jspdf.jsPDF, createCanvas, loadImage,
+        onProgress: (p) => {
+          if (p.phase === 'sheets') setStatus('Sheet ' + p.done + ' of ' + p.total, 0.1 + 0.85 * p.done / p.total);
+          else setStatus('Writing manifest', 0.97);
+        },
+      });
+
+      const file = new File([blob], slug(board.name) + '-pack.pdf', { type: 'application/pdf' });
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
+      fileUrl = URL.createObjectURL(file);
+      setStatus('Done', 1);
+      $('#progress').hidden = true;
+      $('#doneInfo').textContent = pins.length + ' pins · ' + Math.ceil(pins.length / per) + ' sheets · ' + (blob.size / 1048576).toFixed(1) + ' MB';
+      $('#done').hidden = false;
+
+      // Sharing needs a fresh tap on iOS, so it can't fire automatically after the build.
+      $('#share').onclick = async () => {
+        try {
+          if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: board.name });
+          else window.open(fileUrl, '_blank');
+        } catch (e) { if (e.name !== 'AbortError') window.open(fileUrl, '_blank'); }
+      };
+      $('#open').onclick = () => window.open(fileUrl, '_blank');
+    } catch (e) {
+      fail(e);
+    } finally {
+      try { if (wake) wake.release(); } catch (_) {}
+    }
+  }
+
+  $('#keyGo').addEventListener('click', () => {
+    const v = $('#keyIn').value.trim();
+    if (!v) return;
+    key = v; store.set('bp_key', v);
+    $('#gateNote').textContent = '';
+    loadBoards();
+  });
+  $('#keyIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#keyGo').click(); });
+  $('#lock').addEventListener('click', () => { key = ''; store.del('bp_key'); $('#keyIn').value = ''; show('gate'); });
+  $('#filter').addEventListener('input', renderBoards);
+  $('#seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    per = +b.dataset.n; store.set('bp_per', String(per)); paintSeg();
+  });
+  $('#back1').addEventListener('click', () => show('boards'));
+  $('#back2').addEventListener('click', () => (key ? loadBoards() : show('gate')));
+
+  paintSeg();
+  if (key) loadBoards(); else show('gate');
+})();
+</script>
+</body>
+</html>
