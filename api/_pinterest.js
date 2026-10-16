@@ -1,11 +1,27 @@
 const BASE = 'https://api.pinterest.com/v5';
 
+// Pasting into a phone often drags along spaces, quotes, or a "Bearer " prefix.
+function token() {
+  return String(process.env.PINTEREST_TOKEN || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .trim()
+    .replace(/^Bearer\s+/i, '')
+    .trim();
+}
+
+// Safe to show: length and first 5 characters only, never the whole token.
+function tokenHint() {
+  const t = token();
+  return 'Token on server: ' + t.length + ' characters, starts "' + t.slice(0, 5) + '".';
+}
+
 async function pinterest(path, params = {}) {
   const url = new URL(BASE + path);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   }
-  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + process.env.PINTEREST_TOKEN } });
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
   let data = {};
   try { data = await r.json(); } catch (_) { /* non-JSON error body */ }
   if (!r.ok) {
@@ -21,7 +37,8 @@ function fail(res, e) {
   const pinterestAuth = e.status === 401 || e.status === 403;
   const status = pinterestAuth ? 502 : e.status || 500;
   const error = pinterestAuth
-    ? 'Pinterest rejected the token (' + e.status + '). It may have expired or lack scopes. Generate a new one and update PINTEREST_TOKEN in Vercel.'
+    ? 'Pinterest rejected the token (' + e.status + '): "' + e.message + '". ' + tokenHint() +
+      ' It may be mistyped, expired, a Sandbox token, or lack scopes. Generate a new one and update PINTEREST_TOKEN in Vercel, then redeploy.'
     : e.message;
   res.status(status).json({ error });
 }
